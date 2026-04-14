@@ -1,0 +1,8 @@
+# DragonTraveler accounts
+# Format: email:password[:serverId]
+# Lines starting with # are comments
+# If serverId is omitted, the last played server is used automatically
+#
+# Examples:
+# user@example.com:password123
+# user@example.com:password123:3746

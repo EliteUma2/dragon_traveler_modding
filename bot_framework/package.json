@@ -1,0 +1,17 @@
+{
+  "name": "game-framework",
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node generate_protos.js",
+    "proxy": "node src/proxy.js",
+    "bot": "node --openssl-legacy-provider bot.js accounts.txt --auto",
+    "dashboard": "node --openssl-legacy-provider bot.js accounts.txt",
+    "start": "node --openssl-legacy-provider bot.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "protobufjs": "^7.4.0",
+    "ws": "^8.19.0"
+  }
+}

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxy Panel</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460; --border: #1a3a5c;
+    --fg: #d4d4d4; --fg2: #888; --accent: #e94560;
+    --c2s: #f0c040; --s2c: #4ec9b0; --drop: #e94560; --mod: #c586c0;
+  }
+  body { font: 13px/1.5 'Cascadia Code','Consolas',monospace; background: var(--bg); color: var(--fg); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--border); background: var(--bg2); color: var(--fg); padding: 4px 10px; border-radius: 3px; }
+  button:hover { background: var(--bg3); }
+  input, select, textarea { font: inherit; background: var(--bg); color: var(--fg); border: 1px solid var(--border); padding: 4px 8px; border-radius: 3px; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+
+  /* ── Top bar ── */
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .toolbar input[type=text] { width: 180px; }
+  .toolbar label { color: var(--fg2); font-size: 12px; display: flex; align-items: center; gap: 3px; }
+  .status { margin-left: auto; font-size: 12px; }
+  .status.on { color: var(--s2c); }
+  .status.off { color: var(--drop); }
+
+  /* ── Main layout ── */
+  .main { display: flex; flex: 1; overflow: hidden; }
+  .log-panel { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .side-panel { width: 380px; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .tab { padding: 6px 16px; cursor: pointer; color: var(--fg2); border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--fg); border-color: var(--accent); }
+  .tab-body { flex: 1; overflow-y: auto; padding: 10px; display: none; }
+  .tab-body.active { display: block; }
+
+  /* ── Packet log ── */
+  .pkt { border-bottom: 1px solid var(--border); }
+  .pkt-head { padding: 3px 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .pkt-head:hover { background: var(--bg2); }
+  .pkt-dir { font-weight: bold; min-width: 28px; }
+  .pkt-dir.c2s { color: var(--c2s); }
+  .pkt-dir.s2c { color: var(--s2c); }
+  .pkt-name { color: #569cd6; }
+  .pkt-size { color: var(--fg2); margin-left: auto; }
+  .pkt-badge { font-size: 10px; padding: 1px 5px; border-radius: 3px; }
+  .badge-mod { background: #553355; color: var(--mod); }
+  .badge-drop { background: #552233; color: var(--drop); }
+  .pkt-body { display: none; padding: 4px 12px 8px 40px; }
+  .pkt-body pre { white-space: pre-wrap; word-break: break-all; font-size: 12px; color: var(--fg2); max-height: 400px; overflow-y: auto; }
+  .pkt.open .pkt-body { display: block; }
+
+  /* ── Rules ── */
+  .rule { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .rule-pkt { color: #569cd6; flex: 1; }
+  .rule-action { font-size: 10px; padding: 1px 5px; border-radius: 3px; }
+  .rule-action.drop { background: #552233; color: var(--drop); }
+  .rule-action.modify { background: #553355; color: var(--mod); }
+  .rule-dir { color: var(--fg2); font-size: 10px; }
+  .rule-del { color: var(--drop); cursor: pointer; background: none; border: none; padding: 2px 4px; }
+
+  /* ── Add rule form ── */
+  .form-section { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .form-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .form-row label { min-width: 60px; color: var(--fg2); font-size: 12px; }
+  .form-row input, .form-row select { flex: 1; }
+  .mod-row { display: flex; gap: 4px; margin-bottom: 4px; align-items: center; }
+  .mod-row input { flex: 1; }
+  .mod-row .mod-del { color: var(--drop); cursor: pointer; background: none; border: none; font-size: 14px; }
+
+  /* ── Form builder ── */
+  .fb { font-size: 12px; }
+  .fb-field { margin-bottom: 2px; }
+  .fb-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+  .fb-label { min-width: 110px; color: #569cd6; text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; }
+  .fb-type { color: var(--fg2); font-size: 10px; min-width: 40px; }
+  .fb-input { flex: 1; min-width: 0; }
+  .fb-input input, .fb-input select { width: 100%; padding: 3px 6px; }
+  .fb-input input[type=checkbox] { width: auto; }
+  .fb-sub { margin-left: 12px; border-left: 2px solid var(--border); padding-left: 8px; }
+  .fb-sub-header { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; color: #569cd6; }
+  .fb-sub-header:hover { color: var(--fg); }
+  .fb-sub-body { display: none; }
+  .fb-sub.open .fb-sub-body { display: block; }
+  .fb-repeat-items { margin-left: 12px; border-left: 2px solid var(--border); padding-left: 8px; }
+  .fb-repeat-item { position: relative; margin-bottom: 4px; padding: 2px 0; border-bottom: 1px dotted var(--border); }
+  .fb-repeat-item .fb-item-del { position: absolute; right: 0; top: 0; color: var(--drop); cursor: pointer; background: none; border: none; font-size: 11px; }
+  .fb-add { font-size: 11px; padding: 2px 8px; margin: 2px 0 2px 12px; }
+  .fb-actions { margin-top: 10px; display: flex; gap: 8px; }
+  .fb-actions button { background: var(--bg3); }
+  .fb-json-toggle { font-size: 11px; color: var(--fg2); cursor: pointer; margin-left: auto; }
+  .fb-json-toggle:hover { color: var(--fg); }
+  .fb-json { margin-top: 6px; }
+  .fb-json textarea { width: 100%; height: 120px; resize: vertical; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <input type="text" id="filter" placeholder="Filter packets...">
+    <label><input type="checkbox" id="showC2S" checked> C2S</label>
+    <label><input type="checkbox" id="showS2C" checked> S2C</label>
+    <button onclick="togglePause()">Pause</button>
+    <button onclick="clearLog()">Clear</button>
+    <span id="status" class="status off">Disconnected</span>
+  </div>
+
+  <div class="main">
+    <div class="log-panel" id="log"></div>
+    <div class="side-panel">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('rules')">Rules</div>
+        <div class="tab" onclick="switchTab('send')">Send</div>
+      </div>
+
+      <!-- Rules tab -->
+      <div class="tab-body active" id="tab-rules">
+        <div id="ruleList"></div>
+        <div class="form-section">
+          <b style="font-size:12px">Add Rule</b>
+          <div class="form-row"><label>Packet</label><input type="text" id="rPkt" list="msgNames" placeholder="SCLogin"></div>
+          <div class="form-row"><label>Direction</label>
+            <select id="rDir"><option value="">Both</option><option value="C2S">C2S</option><option value="S2C">S2C</option></select>
+          </div>
+          <div class="form-row"><label>Action</label>
+            <select id="rAction" onchange="toggleModFields()"><option value="drop">Drop</option><option value="modify">Modify</option></select>
+          </div>
+          <div id="modFields" style="display:none">
+            <div style="font-size:11px;color:var(--fg2);margin:4px 0">Field modifications (dot.path notation):</div>
+            <div id="modList"></div>
+            <button onclick="addModField()" style="font-size:11px;margin-top:4px">+ Field</button>
+          </div>
+          <div class="form-row" style="margin-top:8px"><button onclick="submitRule()" style="background:var(--bg3)">Add Rule</button></div>
+        </div>
+      </div>
+
+      <!-- Send tab -->
+      <div class="tab-body" id="tab-send">
+        <div class="form-row"><label>Message</label><input type="text" id="sPkt" list="msgNames" placeholder="CSPing" oninput="onMsgSelect()"></div>
+        <div class="form-row"><label>Direction</label>
+          <select id="sDir"><option value="C2S">C2S (to server)</option><option value="S2C">S2C (to client)</option></select>
+        </div>
+        <div style="display:flex;align-items:center;margin:6px 0">
+          <b style="font-size:12px">Fields</b>
+          <span class="fb-json-toggle" onclick="toggleJsonMode()">[toggle JSON]</span>
+        </div>
+        <div id="formFields" class="fb"></div>
+        <div id="jsonMode" class="fb-json" style="display:none">
+          <textarea id="sData" placeholder='{"field": "value"}'>{}</textarea>
+        </div>
+        <div class="fb-actions">
+          <button onclick="sendPacket()">Send</button>
+          <button onclick="previewJson()" style="background:var(--bg2)">Preview JSON</button>
+        </div>
+        <pre id="jsonPreview" style="font-size:11px;color:var(--fg2);margin-top:8px;max-height:150px;overflow:auto"></pre>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="msgNames"></datalist>
+
+<script>
+const API = location.origin;
+let ws = null;
+let paused = false;
+let pktId = 0;
+let messages = [];
+let currentSchema = null;
+let currentSubs = {};
+let currentEnums = {};
+let jsonMode = false;
+
+// ── WebSocket ──────────────────────────────────────────────────────────────────
+function connectWS() {
+  ws = new WebSocket(`ws://${location.host}`);
+  ws.onopen = () => { document.getElementById('status').textContent = 'Connected'; document.getElementById('status').className = 'status on'; };
+  ws.onclose = () => {
+    document.getElementById('status').textContent = 'Disconnected';
+    document.getElementById('status').className = 'status off';
+    setTimeout(connectWS, 2000);
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'init') renderRules(msg.rules);
+    else if (msg.type === 'packet' || msg.type === 'drop') addPacketToLog(msg);
+  };
+}
+
+// ── Packet log ─────────────────────────────────────────────────────────────────
+function addPacketToLog(pkt) {
+  if (paused) return;
+  const filter = document.getElementById('filter').value.toLowerCase();
+  const showC2S = document.getElementById('showC2S').checked;
+  const showS2C = document.getElementById('showS2C').checked;
+  if (pkt.direction === 'C2S' && !showC2S) return;
+  if (pkt.direction === 'S2C' && !showS2C) return;
+  if (filter && !pkt.name.toLowerCase().includes(filter)) return;
+
+  const id = ++pktId;
+  const log = document.getElementById('log');
+  const div = document.createElement('div');
+  div.className = 'pkt';
+
+  const dirClass = pkt.direction === 'C2S' ? 'c2s' : 's2c';
+  const arrow = pkt.direction === 'C2S' ? 'C\u2192S' : 'S\u2192C';
+  let badges = '';
+  if (pkt.type === 'drop') badges += '<span class="pkt-badge badge-drop">DROPPED</span>';
+  if (pkt.modified) badges += '<span class="pkt-badge badge-mod">MODIFIED</span>';
+  const dataStr = pkt.data ? JSON.stringify(pkt.data, null, 2) : '';
+
+  div.innerHTML = `
+    <div class="pkt-head" onclick="this.parentElement.classList.toggle('open')">
+      <span class="pkt-dir ${dirClass}">${arrow}</span>
+      <span class="pkt-name">${esc(pkt.name)}</span>
+      ${badges}
+      <span class="pkt-size">${pkt.size || 0}B</span>
+    </div>
+    <div class="pkt-body"><pre>${esc(dataStr)}</pre></div>`;
+  log.appendChild(div);
+  if (log.scrollHeight - log.scrollTop - log.clientHeight < 100) log.scrollTop = log.scrollHeight;
+  while (log.children.length > 2000) log.removeChild(log.firstChild);
+}
+
+function togglePause() { paused = !paused; event.target.textContent = paused ? 'Resume' : 'Pause'; }
+function clearLog() { document.getElementById('log').innerHTML = ''; pktId = 0; }
+
+// ── Rules ──────────────────────────────────────────────────────────────────────
+function renderRules(rules) {
+  const el = document.getElementById('ruleList');
+  if (!rules || rules.length === 0) { el.innerHTML = '<div style="color:var(--fg2);font-size:12px">No rules</div>'; return; }
+  el.innerHTML = rules.map(r => {
+    const mods = r.mods && r.mods.length > 0
+      ? '<div style="font-size:11px;color:var(--fg2);padding-left:20px">' + r.mods.map(m => `${esc(m.path)} = ${esc(JSON.stringify(m.value))}`).join('<br>') + '</div>'
+      : '';
+    return `<div class="rule">
+      <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="toggleRule(${r.id})">
+      <span class="rule-pkt">${esc(r.packet)}</span>
+      <span class="rule-dir">${r.direction || 'ALL'}</span>
+      <span class="rule-action ${r.action}">${r.action.toUpperCase()}</span>
+      <button class="rule-del" onclick="deleteRule(${r.id})">\u00d7</button>
+    </div>${mods}`;
+  }).join('');
+}
+
+async function refreshRules() { renderRules(await (await fetch(API + '/api/rules')).json()); }
+async function toggleRule(id) { await fetch(API + '/api/rules/' + id, { method: 'PATCH' }); refreshRules(); }
+async function deleteRule(id) { await fetch(API + '/api/rules/' + id, { method: 'DELETE' }); refreshRules(); }
+
+function toggleModFields() {
+  document.getElementById('modFields').style.display = document.getElementById('rAction').value === 'modify' ? 'block' : 'none';
+}
+
+function addModField() {
+  const row = document.createElement('div');
+  row.className = 'mod-row';
+  row.innerHTML = '<input type="text" placeholder="field.path" class="mod-path"><input type="text" placeholder="value" class="mod-val"><button class="mod-del" onclick="this.parentElement.remove()">\u00d7</button>';
+  document.getElementById('modList').appendChild(row);
+}
+
+async function submitRule() {
+  const packet = document.getElementById('rPkt').value.trim();
+  if (!packet) return;
+  const direction = document.getElementById('rDir').value || null;
+  const action = document.getElementById('rAction').value;
+  const mods = [];
+  if (action === 'modify') {
+    for (const row of document.querySelectorAll('#modList .mod-row')) {
+      const path = row.querySelector('.mod-path').value.trim();
+      const valStr = row.querySelector('.mod-val').value.trim();
+      if (!path) continue;
+      let value; try { value = JSON.parse(valStr); } catch { value = valStr; }
+      mods.push({ path, value });
+    }
+  }
+  await fetch(API + '/api/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ packet, direction, action, mods }) });
+  document.getElementById('rPkt').value = '';
+  document.getElementById('modList').innerHTML = '';
+  refreshRules();
+}
+
+// ── Form builder ───────────────────────────────────────────────────────────────
+let schemaTimeout = null;
+function onMsgSelect() {
+  clearTimeout(schemaTimeout);
+  schemaTimeout = setTimeout(loadSchema, 200);
+  // Auto-set direction based on prefix
+  const name = document.getElementById('sPkt').value.trim();
+  if (name.startsWith('CS')) document.getElementById('sDir').value = 'C2S';
+  else if (name.startsWith('SC')) document.getElementById('sDir').value = 'S2C';
+}
+
+async function loadSchema() {
+  const name = document.getElementById('sPkt').value.trim();
+  const container = document.getElementById('formFields');
+  if (!name) { container.innerHTML = ''; currentSchema = null; return; }
+  try {
+    const res = await fetch(API + '/api/schema?name=' + encodeURIComponent(name));
+    const data = await res.json();
+    if (data.error) { container.innerHTML = '<span style="color:var(--fg2)">Unknown message</span>'; currentSchema = null; return; }
+    currentSchema = data.schema;
+    currentSubs = data.subs || {};
+    currentEnums = data.enums || {};
+    container.innerHTML = '';
+    buildFields(data.schema.fields, container);
+  } catch (e) {
+    container.innerHTML = '<span style="color:var(--drop)">Error loading schema</span>';
+  }
+}
+
+function buildFields(fields, container) {
+  for (const f of fields) {
+    const div = document.createElement('div');
+    div.className = 'fb-field';
+    div.dataset.name = f.name;
+    div.dataset.type = f.t;
+    div.dataset.repeated = f.r ? '1' : '0';
+    if (f.sub) div.dataset.sub = f.sub;
+
+    if (f.r) {
+      // Repeated field
+      div.innerHTML = `<div class="fb-row"><span class="fb-label">${esc(f.name)}</span><span class="fb-type">${esc(f.t)}[]</span></div>`;
+      const items = document.createElement('div');
+      items.className = 'fb-repeat-items';
+      div.appendChild(items);
+      const addBtn = document.createElement('button');
+      addBtn.className = 'fb-add';
+      addBtn.textContent = '+ add';
+      addBtn.onclick = () => addRepeatItem(items, f);
+      div.appendChild(addBtn);
+    } else if (f.t === 'message' && f.sub && currentSubs[f.sub]) {
+      // Nested message
+      div.className = 'fb-field fb-sub';
+      div.innerHTML = `<div class="fb-sub-header" onclick="this.parentElement.classList.toggle('open')">\u25b6 ${esc(f.name)} <span class="fb-type">${esc(f.sub)}</span></div>`;
+      const body = document.createElement('div');
+      body.className = 'fb-sub-body';
+      buildFields(currentSubs[f.sub].fields, body);
+      div.appendChild(body);
+    } else {
+      // Simple field
+      div.innerHTML = `<div class="fb-row">
+        <span class="fb-label" title="${esc(f.name)}">${esc(f.name)}</span>
+        <div class="fb-input">${inputFor(f)}</div>
+        <span class="fb-type">${esc(f.t)}</span>
+      </div>`;
+    }
+    container.appendChild(div);
+  }
+}
+
+function inputFor(f) {
+  if (f.t === 'bool') return '<input type="checkbox">';
+  if (f.t === 'int32' || f.t === 'int64') return '<input type="number" placeholder="0">';
+  if (f.t === 'double' || f.t === 'float') return '<input type="number" step="any" placeholder="0.0">';
+  if (f.t === 'string') return '<input type="text" placeholder="">';
+  if (f.t === 'bytes') return '<input type="text" placeholder="hex">';
+  if (f.t === 'enum' && f.sub && currentEnums[f.sub]) {
+    const entries = Object.entries(currentEnums[f.sub]).sort((a, b) => a[1] - b[1]);
+    return '<select><option value="">(none)</option>' + entries.map(([n, v]) => `<option value="${v}">${esc(n)} (${v})</option>`).join('') + '</select>';
+  }
+  if (f.t === 'enum') return '<input type="number" placeholder="enum int">';
+  // Unknown sub-message without schema
+  if (f.t === 'message') return `<input type="text" placeholder="JSON for ${esc(f.sub || 'msg')}">`;
+  return '<input type="text">';
+}
+
+function addRepeatItem(container, f) {
+  const item = document.createElement('div');
+  item.className = 'fb-repeat-item';
+  const idx = container.children.length;
+  const del = `<button class="fb-item-del" onclick="this.parentElement.remove()">\u00d7</button>`;
+
+  if (f.t === 'message' && f.sub && currentSubs[f.sub]) {
+    item.innerHTML = `<div style="font-size:11px;color:var(--fg2)">[${idx}]</div>${del}`;
+    const subBody = document.createElement('div');
+    subBody.className = 'fb-sub-body';
+    subBody.style.display = 'block';
+    buildFields(currentSubs[f.sub].fields, subBody);
+    item.appendChild(subBody);
+  } else {
+    item.innerHTML = `<div class="fb-row"><span class="fb-label">[${idx}]</span><div class="fb-input">${inputFor(f)}</div></div>${del}`;
+  }
+  container.appendChild(item);
+}
+
+// ── Collect form data ──────────────────────────────────────────────────────────
+function collectFields(container) {
+  const obj = {};
+  for (const field of container.querySelectorAll(':scope > .fb-field')) {
+    const name = field.dataset.name;
+    const type = field.dataset.type;
+    const repeated = field.dataset.repeated === '1';
+    const sub = field.dataset.sub;
+
+    if (repeated) {
+      const items = field.querySelector('.fb-repeat-items');
+      if (!items || items.children.length === 0) continue;
+      const arr = [];
+      for (const item of items.children) {
+        if (type === 'message' && sub && currentSubs[sub]) {
+          const subBody = item.querySelector('.fb-sub-body');
+          if (subBody) {
+            const val = collectFields(subBody);
+            if (Object.keys(val).length > 0) arr.push(val);
+          }
+        } else {
+          const val = readInput(item.querySelector('input, select'), type);
+          if (val !== undefined) arr.push(val);
+        }
+      }
+      if (arr.length > 0) obj[name] = arr;
+    } else if (type === 'message' && sub && currentSubs[sub]) {
+      const subBody = field.querySelector('.fb-sub-body');
+      if (subBody) {
+        const val = collectFields(subBody);
+        if (Object.keys(val).length > 0) obj[name] = val;
+      }
+    } else if (type === 'message') {
+      // Sub-message without known schema — try parsing as JSON
+      const input = field.querySelector('input');
+      if (input && input.value.trim()) {
+        try { obj[name] = JSON.parse(input.value); } catch {}
+      }
+    } else {
+      const input = field.querySelector('input, select');
+      const val = readInput(input, type);
+      if (val !== undefined) obj[name] = val;
+    }
+  }
+  return obj;
+}
+
+function readInput(el, type) {
+  if (!el) return undefined;
+  if (type === 'bool') return el.checked ? true : undefined;
+  if (type === 'int32' || type === 'int64' || type === 'enum') {
+    return el.value !== '' ? parseInt(el.value) : undefined;
+  }
+  if (type === 'double' || type === 'float') {
+    return el.value !== '' ? parseFloat(el.value) : undefined;
+  }
+  if (type === 'string') return el.value || undefined;
+  if (type === 'bytes') return el.value || undefined;
+  return el.value || undefined;
+}
+
+// ── Send ───────────────────────────────────────────────────────────────────────
+function toggleJsonMode() {
+  jsonMode = !jsonMode;
+  document.getElementById('formFields').style.display = jsonMode ? 'none' : 'block';
+  document.getElementById('jsonMode').style.display = jsonMode ? 'block' : 'none';
+}
+
+function getPacketData() {
+  if (jsonMode) {
+    try { return JSON.parse(document.getElementById('sData').value); }
+    catch { alert('Invalid JSON'); return null; }
+  }
+  return collectFields(document.getElementById('formFields'));
+}
+
+function previewJson() {
+  const data = getPacketData();
+  if (data !== null) document.getElementById('jsonPreview').textContent = JSON.stringify(data, null, 2);
+}
+
+async function sendPacket() {
+  const name = document.getElementById('sPkt').value.trim();
+  if (!name) { alert('Select a message'); return; }
+  const direction = document.getElementById('sDir').value;
+  const data = getPacketData();
+  if (data === null) return;
+
+  const res = await fetch(API + '/api/inject', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ direction, name, data }),
+  });
+  const result = await res.json();
+  if (result.error) alert('Error: ' + result.error);
+  else document.getElementById('jsonPreview').textContent = 'Sent!';
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase() === name));
+  document.querySelectorAll('.tab-body').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+function esc(s) { if (s == null) return ''; const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
+async function init() {
+  const res = await fetch(API + '/api/messages');
+  messages = await res.json();
+  document.getElementById('msgNames').innerHTML = messages.map(m => `<option value="${esc(m.name)}">`).join('');
+  connectWS();
+}
+init();
+</script>
+</body>
+</html>

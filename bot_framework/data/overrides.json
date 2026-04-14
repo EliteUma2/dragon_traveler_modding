@@ -1,0 +1,8 @@
+{
+  "_comment": "Per-message field overrides. Key = message name, value = { fieldName: { num, snappy, sub, type } }. Use when auto-discovered field numbers are wrong.",
+  "HeroGachaInfo": {
+    "timesAfterLastOrange": {
+      "num": 6
+    }
+  }
+}
