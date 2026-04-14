@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Packet Monitor</title>
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="protocol-editor.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Packet Monitor</h1>
+    <span class="tag">WebSocket</span>
+    <span class="tag">IL2CPP</span>
+    <div class="conn-status" id="connStatus">
+      <span class="dot" id="connDot"></span>
+      <span id="connText">Disconnected</span>
+    </div>
+  </header>
+
+  <!-- Filters -->
+  <div class="filter-bar">
+    <label>Filter:</label>
+    <input type="text" id="filterMsgId" placeholder="msgId (comma-sep)" style="width:140px">
+    <div class="mtog">
+      <button class="mbtn on" data-d="all" onclick="setDirFilter(this)">All</button>
+      <button class="mbtn" data-d="send" onclick="setDirFilter(this)">Send</button>
+      <button class="mbtn" data-d="recv" onclick="setDirFilter(this)">Recv</button>
+    </div>
+    <label style="margin-left:12px">
+      <input type="checkbox" id="autoScroll" checked> Auto-scroll
+    </label>
+    <button class="bc" onclick="clearPackets()" style="margin-left:auto">Clear</button>
+    <span class="pkt-count" id="pktCount">0 packets</span>
+  </div>
+
+  <!-- Main split -->
+  <div class="main-split">
+    <!-- Packet list -->
+    <div class="pkt-list-container">
+      <div class="pkt-list-header">
+        <span class="ph-seq">#</span>
+        <span class="ph-dir">Dir</span>
+        <span class="ph-mid">MsgId</span>
+        <span class="ph-name">Name</span>
+        <span class="ph-len">Len</span>
+      </div>
+      <div class="pkt-list" id="pktList"></div>
+    </div>
+
+    <!-- Resizer -->
+    <div class="split-resizer" id="splitResizer"></div>
+
+    <!-- Detail panel -->
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-empty" id="detailEmpty">
+        <p>Select a packet to view details</p>
+      </div>
+      <div class="detail-content" id="detailContent" style="display:none">
+        <div class="detail-header" id="detailHeader"></div>
+        <div class="detail-hex" id="detailHex"></div>
+        <div class="detail-decoded" id="detailDecoded" style="display:none">
+          <div class="decoded-header" onclick="toggleDecoded()">Decoded Fields <span id="decodedToggle">&#9654;</span></div>
+          <div class="decoded-body" id="decodedBody" style="display:none"></div>
+        </div>
+        <div id="results"></div>
+        <div class="detail-actions" id="detailActions">
+          <button class="bp" onclick="resendPacket()" id="btnResend">Resend</button>
+          <button class="bx" onclick="editAndSend()" id="btnEditSend">Edit &amp; Send</button>
+          <button class="bc" onclick="exportDiagnostic()" id="btnDiag" title="Copy full diagnostic JSON to clipboard for override generation">Export Diagnostic</button>
+          <button class="bp" onclick="analyzeCells()" id="btnAnalyzeCells" style="display:none;background:var(--ac4);color:var(--bg)">Analyze Cells</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Packet crafter -->
+  <div class="crafter">
+    <div class="crafter-header">Packet Crafter</div>
+    <div class="crafter-row">
+      <label>Mode:</label>
+      <div class="mtog">
+        <button class="mbtn on" data-ct="send" onclick="setCraftType(this)">Send</button>
+        <button class="mbtn" data-ct="recv" onclick="setCraftType(this)">Recv</button>
+      </div>
+      <label>msgId:</label>
+      <input type="number" id="craftMsgId" value="4001" style="width:80px">
+      <label>Data (hex):</label>
+      <input type="text" id="craftData" placeholder="full frame (send) or raw proto (recv)" style="flex:1">
+      <button class="bp" onclick="sendCraftedPacket()">Send</button>
+    </div>
+    <div class="crafter-row" style="border-top:1px solid var(--bd)">
+      <label>Schema:</label>
+      <select id="craftSchema" onchange="selectCraftSchema(this.value)" style="flex:1;max-width:300px;background:var(--bg);border:1px solid var(--bd);color:var(--tx);font-family:inherit;font-size:11px;padding:4px 6px;border-radius:4px">
+        <option value="">— Select CS* message —</option>
+      </select>
+      <button class="bp" onclick="sendCraftedSchema()">Build &amp; Send</button>
+    </div>
+    <div id="craftFields" style="display:none"></div>
+  </div>
+  <!-- Hidden elements required by protocol-editor.js -->
+  <textarea id="inp" style="display:none"></textarea>
+  <select id="inFmt" style="display:none"><option value="hex" selected>Hex</option></select>
+</div>
+<script src="protocol-editor.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

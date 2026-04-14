@@ -1,0 +1,15 @@
+{
+  "_comment": "Per-message field overrides. Key = message name, value = { fieldName: { num, snappy, sub, type } }. Use when auto-discovered field numbers are wrong.",
+  "SCGuildExplore": {
+    "map": { "num": 6, "snappy": true, "sub": "GuildExploreMapMsg" },
+    "enemyGuild": { "num": 7 },
+    "mark": { "num": 8 },
+    "hurtHeroes": { "num": 9 },
+    "robResources": { "num": 11 },
+    "finishGuildTaskId": { "num": 21 },
+    "rewardedGuildTaskId": { "num": 22 },
+    "bossBattleTimes": { "num": 23 },
+    "avCompeteTimes": { "num": 27 },
+    "remainReward": { "num": 28 }
+  }
+}
