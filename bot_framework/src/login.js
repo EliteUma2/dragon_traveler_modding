@@ -13,10 +13,9 @@ const DEFAULTS = {
   serverListUrl: 'http://usphoenix-global-gf.game-tree.com:8001/account/login?mod=web',
   clientVersion: '539',
   clientSubVersion: '689',
-  sourceVersion: '58',
-  dataVersion: '1.0.0.58',
+  sourceVersion: '69',
+  dataVersion: '1.0.0.69',
 };
-
 // ── Crypto helpers ───────────────────────────────────────────────────────────
 
 function aesEncrypt(plaintext, keyStr) {
